@@ -1,23 +1,25 @@
 # grandma2_colorpicker_plugin
 
-## There are two versions of this plugin. Please read below for more info.
-
-[leonreucher251](https://github.com/leonreucher251) made a fork that automaticaly creates the layout pool and assigns images.
-This is very easy but the HighLowFX plugin does not work anymore in his version. So there are two options:
-
-- [Original version](https://github.com/egidiusmengelberg/grandma2_colorpicker_plugin): ColorPicker and HighLowFX plugin (you need to mannauly assign the images to the layoutview items)
-- [leonreucher251 version](https://github.com/egidiusmengelberg/grandma2_colorpicker_plugin/tree/automated_layout_view): Auto layoutview creation but without HighLowFX plugin.
-
-***
-
-## Original version readme
-
 A LUA plugin to automatically create a color picker layout view.
 I also added a function to create High and Low FX presets for use in a effect engine.
 This is the plugin called HighLowFX.lua.
 
+Both plugins create their layout view automatically, including the images assigned to the macro buttons.
+This method was contributed by [leonreucher251](https://github.com/leonreucher251).
+The two separate versions of this plugin (with and without automatic layout view creation) have been merged into this one version.
+
 ### Be sure to first run the colorpicker and then the HighLowFX plugin! 
 I have not tested it the otherway around.
+
+## How the layout views are created
+Each plugin writes its layout view as an XML file to the `importexport` folder of the show data path
+(`colorpicker_layout.xml` and `highlowfx_layout.xml`) and imports it into the configured layout view.
+This works on the consoles (Linux) as well as on grandMA2 onPC (Windows).
+
+Before the import, the plugins select the internal drive (`SelectDrive 1`), because the `Import` command reads from the currently selected drive.
+If a USB stick was selected before running a plugin, select it again afterwards.
+
+The configured layout views are overwritten by the plugins.
 
 ## Configuration
 In the ColorPicker.lua file, you will find the config section at the top.
@@ -30,7 +32,7 @@ You can add as many as you would like.
 
 `startingPage` and `startingFader` correspond to the page and fader where all your sequences will be stored.
 
-`layoutView` sets the layout view where all the macros will be stored to.
+`layoutView` sets the layout view where all the macros will be stored to, `layoutName` sets its name.
 And `spacing` sets the space between the macros in the layout pool.
 
 With `imgStart` you can set the image pool item where the plugin wll start copying images to.
@@ -40,6 +42,12 @@ The `allImgStart` defines the place where the images for the All macros will be 
 The order of these images is the same as the colors. Please read below to find out what the default order is.
 
 `unfilledImages` contains the array of image pool numbers with all the unfilled images. 
+
+### HighLowFX
+The HighLowFX plugin creates its buttons in its own layout view, so it does not interfere with the color picker layout view.
+In the HighLowFX.lua file, `layoutView` (default: 2) and `layoutName` set this layout view.
+Make sure it is a different layout view than the one used by the ColorPicker plugin.
+`startX`, `startY` and `layoutSpacing` set the position of the buttons in this layout view.
 
 
 ## Colors
@@ -58,7 +66,5 @@ Because I am a very busy student I haven't got much time to develop this plugin.
 
 ### Next Features
 
-1. Automatically change the icon of each macro in the layout view [See leonreucher251 version](https://github.com/egidiusmengelberg/grandma2_colorpicker_plugin/tree/automated_layout_view) 
-2. Making sure it works with different colors.
-3. An overall code cleanup
-4. Merge ColorPicker and HighLowFX and use leonreucher251 method to create layoutview buttons 
+1. Making sure it works with different colors.
+2. An overall code cleanup

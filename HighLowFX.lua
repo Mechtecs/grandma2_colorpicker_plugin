@@ -2,6 +2,9 @@
 This plugin is written by Egidius Mengelberg
 
 It enables you to automaticly make a HighFX and LowFX preset to use in your effects
+
+The buttons are created in their own layout view, including the assigned images
+(same method as the automated layout view of the ColorPicker plugin by Leon Reucher).
 --]]
 
 
@@ -17,9 +20,11 @@ local startingExec = 161 --fader to start
 local LowFXPreset = 112 -- Low fx pool item
 local HighFXPreset = 113 -- High fx pool item
 
-local layoutView = 1
+--layout view config (use a different layout view than the ColorPicker plugin)
+local layoutView = 2
+local layoutName = 'HighLowFX'
 local startX = 0.5
-local startY = 8
+local startY = 0.5
 local layoutSpacing = 0.1
 
 local imageStart = 544
@@ -44,6 +49,7 @@ local imageGrid = {}
 local text = gma.textinput
 local cmd = gma.cmd
 local getHandle = gma.show.getobj.handle
+local xmlfile
 
 
 --FUNCTIONS
@@ -69,10 +75,70 @@ function macLine(macroNum, lineNum, command, wait) --generate new line within ma
   if wait then cmd('Assign Macro 1.'..macroNum..'.'..lineNum..'/wait = \"'..wait..'\"') end
 end
 
+--Escape a string for use in an XML attribute
+function xmlEscape(str)
+  return (tostring(str):gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;'):gsub('"', '&quot;'))
+end
+
+--Absolute path of a file in the importexport folder (works on console (Linux) and onPC (Windows))
+function importExportPath(filename)
+  local slash = package.config:sub(1, 1)
+  return gma.show.getvar('PATH')..slash..'importexport'..slash..filename
+end
+
+--Import a layout view xml from the internal drive.
+--The Import command reads from the currently selected drive, which may be a USB stick.
+function importLayout(filename, index)
+  cmd('SelectDrive 1')
+  cmd('Import \"'..filename..'\" At Layout '..index..' /nc')
+end
+
+function printNewButton(x, y, imgName, imgIndex, macroIndex, label)
+  imgName = xmlEscape(imgName)
+  label = xmlEscape(label)
+  xmlfile:write('\t\t\t\t<LayoutCObject font_size="Small" center_x="'..x..'" center_y="'..y..'" size_h="1" size_w="1" background_color="3c3c3c" border_color="5a5a5a" icon="None" show_dimmer_bar="Off" show_dimmer_value="Off" function_type="Simple" select_group="1">', "\n")
+  xmlfile:write('\t\t\t\t\t<image name="'..imgName..'">', "\n")
+  xmlfile:write('\t\t\t\t\t\t<No>8</No>', "\n")
+  xmlfile:write('\t\t\t\t\t\t<No>'..imgIndex..'</No>', "\n")
+  xmlfile:write('\t\t\t\t\t</image>', "\n")
+  xmlfile:write('\t\t\t\t\t<CObject name="'..label..'">', "\n")
+  xmlfile:write('\t\t\t\t\t\t<No>13</No>', "\n")
+  xmlfile:write('\t\t\t\t\t\t<No>1</No>', "\n")
+  xmlfile:write('\t\t\t\t\t\t<No>'..macroIndex..'</No>', "\n")
+  xmlfile:write('\t\t\t\t\t</CObject>', "\n")
+  xmlfile:write('\t\t\t\t</LayoutCObject>', "\n")
+end
+
+function printXmlStart(index, name)
+  xmlfile:write('<?xml version="1.0" encoding="utf-8"?>', "\n")
+  xmlfile:write('<MA xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.malighting.de/grandma2/xml/MA" xsi:schemaLocation="http://schemas.malighting.de/grandma2/xml/MA http://schemas.malighting.de/grandma2/xml/3.9.60/MA.xsd" major_vers="3" minor_vers="9" stream_vers="60">', "\n")
+  xmlfile:write('\t<Info datetime="'..os.date('%Y-%m-%dT%H:%M:%S')..'" showfile="'..xmlEscape(gma.show.getvar('SHOWFILE') or '')..'" />', "\n")
+  xmlfile:write('\t<Group index="'..index..'" name="'..xmlEscape(name)..'">', "\n")
+  xmlfile:write('\t\t<LayoutData index="0" marker_visible="true" background_color="000000" visible_grid_h="1" visible_grid_w="0" snap_grid_h="0.5" snap_grid_w="0.5" default_gauge="Filled &amp; Symbol" subfixture_view_mode="DMX Layer">', "\n")
+  xmlfile:write('\t\t\t<CObjects>', "\n")
+end
+
+function printXmlEnd()
+  xmlfile:write('\t\t\t</CObjects>', "\n")
+  xmlfile:write('\t\t</LayoutData>', "\n")
+  xmlfile:write('\t</Group>', "\n")
+  xmlfile:write('</MA>', "\n")
+end
+
 return function()
 -----------------------------------------------------------------
 --------------------- START OF PLUGIN ---------------------------
 -----------------------------------------------------------------
+
+local xmlFilename = 'highlowfx_layout.xml'
+local xmlError
+xmlfile, xmlError = io.open(importExportPath(xmlFilename), 'w')
+if not xmlfile then
+  gma.feedback('HighLowFX: cannot write layout file: '..tostring(xmlError))
+  gma.echo('HighLowFX: cannot write layout file: '..tostring(xmlError))
+  return
+end
+printXmlStart(layoutView, layoutName)
 
 local imageCurrent = imageStart
 
@@ -88,7 +154,7 @@ for r=1,2 do
       imageCurrent = imageCurrent + 1
    end
    imageCurrent = imageCurrent + imageSpaceBetween
-end 
+end
 
 local cName = {} --list where names of preset pool items will be stored
 
@@ -113,28 +179,29 @@ for t=1,2 do
   for c = 1, #cNum do
     local execCurrent = tostring(startingPg..'.'..faderCurrent)
     local copyCommand = ''
+    local macLabel = ''
     cmd('ClearAll')
     cmd('Store Sequence '..seqCurrent..' Cue '..c..' '..str_storeOpt) --store to sequence and cue
 
     if c == #cNum then
       cmd('Assign Sequence '..seqCurrent..' At Executor '..execCurrent) --assign sequence to executor
-    end 
+    end
 
     if t == 1 then
       cmd('Label Sequence '..seqCurrent..' \"Low FX\"'); --label sequence
-      macStore(macCurrent, 'Low FX '..cName[c]) --create macro; label with color name
-      macLine(macCurrent, 1, 'Goto Executor '..execCurrent..' Cue '..c)
-      macLine(macCurrent, 2, 'Off Macro '..macStart+(#cNum*(t-1))..' Thru '..(macStart-1)+(#cNum*(t-1))+#cNum..' - '..macCurrent)
+      macLabel = 'Low FX '..cName[c]
       copyCommand = 'Copy Preset 4.'..c..' At Preset 4.'..LowFXPreset
     end
 
     if t == 2 then
       cmd('Label Sequence '..seqCurrent..' \"High FX\"'); --label sequence
-      macStore(macCurrent, 'High FX '..cName[c]) --create macro; label with color name
-      macLine(macCurrent, 1, 'Goto Executor '..execCurrent..' Cue '..c)
-      macLine(macCurrent, 2, 'Off Macro '..macStart+(#cNum*(t-1))..' Thru '..(macStart-1)+(#cNum*(t-1))+#cNum..' - '..macCurrent)
+      macLabel = 'High FX '..cName[c]
       copyCommand = 'Copy Preset 4.'..c..' At Preset 4.'..HighFXPreset
     end
+
+    macStore(macCurrent, macLabel) --create macro; label with color name
+    macLine(macCurrent, 1, 'Goto Executor '..execCurrent..' Cue '..c)
+    macLine(macCurrent, 2, 'Off Macro '..macStart+(#cNum*(t-1))..' Thru '..(macStart-1)+(#cNum*(t-1))+#cNum..' - '..macCurrent)
 
     local imageCommand1 = 'Copy Image '..unfilledImages[1]..' Thru '..unfilledImages[#cNum]..' At '..imageGrid[t][1]..' /m /nc'
     local imageCommand2 = 'Copy Image '..filledImages[c]..' At '..imageGrid[t][c]..' /m /nc'
@@ -142,20 +209,21 @@ for t=1,2 do
     cmd('Assign Sequence '..seqCurrent..' Cue '..c..' /cmd=\"'..copyCommand..' /m /nc; '..imageCommand1..' /m /nc; '..imageCommand2..'/m /nc\"')
     cmd('Label Sequence '..seqCurrent..' Cue '..c..' \"'..cName[c]..'\"');  --label cue w/ name tables
 
-      
+
     -- change the appearance of the macro
     cmd('Appearance Macro '..macCurrent..' /color='..'"'..colSwatchBook[c]..'"')
-      
+
     cmd('ClearAll'); --clear your programmer
 
-    posX = (c+startX) * (1+layoutSpacing)
-    posY = (t+startY) * (1+layoutSpacing)
+    local posX = (c+startX) * (1+layoutSpacing)
+    local posY = (t+startY) * (1+layoutSpacing)
 
-    cmd('Assign Macro '..macCurrent..' At Layout '..layoutView..'/x='..posX..' /y='..posY)
-      
+    --add macro to the layout view
+    printNewButton(posX, posY, macLabel, imageGrid[t][c], macCurrent, macLabel)
+
     macCurrent = macCurrent + 1 --move to next macro number
-    gma.sleep(0.05) --to ease processing power conflicts   
-    
+    gma.sleep(0.05) --to ease processing power conflicts
+
   end
   seqCurrent  = seqCurrent + 1 --move to next sequence number
   faderCurrent  = faderCurrent + 1
@@ -167,7 +235,7 @@ local macCurrent = macStart + (2 * #cNum) --resets variable at the position afte
 local mac_sys_start = macCurrent
 local mac_uninstall = mac_sys_start + 2
 
-local seqEnd = seqStart + (2 * #cNum)
+local seqEnd = seqCurrent - 1 --one sequence for Low FX and one for High FX
 
 --lock uninstall macro
 macStore(macCurrent, 'DISABLE Uninstall HighLowFX Macro')
@@ -187,9 +255,15 @@ macCurrent = macCurrent + 1
 macStore(macCurrent, 'UNINSTALL HighLowFX')
 macLine(macCurrent, 1, 'Delete Sequence '..seqStart..' Thru '..seqEnd..' /nc')
 macLine(macCurrent, 2, 'Delete Image '..imageGrid[1][1]..' Thru '..imageGrid[2][#cNum]..' /nc')
-macLine(macCurrent, 2, "Delete Layout "..layoutView..' If Macro '..macStart..' Thru '..macCurrent)
-macLine(macCurrent, 3, 'Delete Macro '..macStart..' Thru '..macCurrent)
+macLine(macCurrent, 3, 'Delete Layout '..layoutView..' /nc')
+macLine(macCurrent, 4, 'Delete Macro '..macStart..' Thru '..macCurrent..' /nc')
 
 cmd('Macro '..mac_sys_start) --run uninstall-lock macro
+
+--close xml file and import it as layout view
+printXmlEnd()
+xmlfile:close()
+
+importLayout(xmlFilename, layoutView)
 
 end  --END OF PLUGIN
