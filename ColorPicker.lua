@@ -334,6 +334,22 @@ local grpName = {}
 
 gma.feedback('Starting to add items to group list')
 
+-- only use the configured groups that exist in the show
+local existingGroups = {}
+for g = 1, #grpNum do
+  if getHandle('Group '..grpNum[g]) then
+    existingGroups[#existingGroups + 1] = grpNum[g]
+  else
+    gma.feedback('Group '..grpNum[g]..' does not exist and is skipped')
+  end
+end
+local grpNum = existingGroups
+if #grpNum == 0 then
+  gma.feedback('ColorPicker: none of the configured groups exist')
+  xmlfile:close()
+  return
+end
+
 -- getting the names of groups based on the group number
 for g = 1, #grpNum do
   grpName[g] = getLabel('Group '..grpNum[g])
