@@ -243,7 +243,27 @@ function table.find(t, target, i, j)
 end
 
 
+--Escape a string for use in an XML attribute
+function xmlEscape(str)
+  return (tostring(str):gsub('&', '&amp;'):gsub('<', '&lt;'):gsub('>', '&gt;'):gsub('"', '&quot;'))
+end
+
+--Absolute path of a file in the importexport folder (works on console (Linux) and onPC (Windows))
+function importExportPath(filename)
+  local slash = package.config:sub(1, 1)
+  return gma.show.getvar('PATH')..slash..'importexport'..slash..filename
+end
+
+--Import a layout view xml from the internal drive.
+--The Import command reads from the currently selected drive, which may be a USB stick.
+function importLayout(filename, index)
+  cmd('SelectDrive 1')
+  cmd('Import \"'..filename..'\" At Layout '..index..' /nc')
+end
+
 function printNewButton(x, y, imgName, imgIndex, macroIndex, label)
+  imgName = xmlEscape(imgName)
+  label = xmlEscape(label)
   xmlfile:write('\t\t\t\t<LayoutCObject font_size="Small" center_x="'..x..'" center_y="'..y..'" size_h="1" size_w="1" background_color="3c3c3c" border_color="5a5a5a" icon="None" show_dimmer_bar="Off" show_dimmer_value="Off" function_type="Simple" select_group="1">', "\n")
   xmlfile:write('\t\t\t\t\t<image name="'..imgName..'">', "\n")
   xmlfile:write('\t\t\t\t\t\t<No>8</No>', "\n")
@@ -258,7 +278,8 @@ function printNewButton(x, y, imgName, imgIndex, macroIndex, label)
 end
 
 function printNewGroupLabel(x, y, groupIndex, label)
-  xmlfile:write('\t\t\t\t<LayoutCObject font_size="Small" center_x="'..x..'" center_y="'..y..'" size_h="1" size_w="1" background_color="3c3c3c" border_color="5a5a5a" icon="None" icon="None" show_id="1" show_name="1" show_type="1" function_type="Pool icon" select_group="1">', "\n")
+  label = xmlEscape(label)
+  xmlfile:write('\t\t\t\t<LayoutCObject font_size="Small" center_x="'..x..'" center_y="'..y..'" size_h="1" size_w="1" background_color="3c3c3c" border_color="5a5a5a" icon="None" show_id="1" show_name="1" show_type="1" function_type="Pool icon" select_group="1">', "\n")
   xmlfile:write('\t\t\t\t\t<image />', "\n")
   xmlfile:write('\t\t\t\t\t<CObject name="'..label..'">', "\n")
   xmlfile:write('\t\t\t\t\t\t<No>22</No>', "\n")
@@ -271,8 +292,8 @@ end
 function printXmlStart(index, name)
   xmlfile:write('<?xml version="1.0" encoding="utf-8"?>', "\n")
   xmlfile:write('<MA xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://schemas.malighting.de/grandma2/xml/MA" xsi:schemaLocation="http://schemas.malighting.de/grandma2/xml/MA http://schemas.malighting.de/grandma2/xml/3.9.60/MA.xsd" major_vers="3" minor_vers="9" stream_vers="60">', "\n")
-  xmlfile:write('\t<Info datetime="2022-10-20T14:34:20" showfile="uts-busk-template-v2" />', "\n")
-  xmlfile:write('\t<Group index="'..index..'" name="'..name..'">', "\n")
+  xmlfile:write('\t<Info datetime="'..os.date('%Y-%m-%dT%H:%M:%S')..'" showfile="'..xmlEscape(gma.show.getvar('SHOWFILE') or '')..'" />', "\n")
+  xmlfile:write('\t<Group index="'..index..'" name="'..xmlEscape(name)..'">', "\n")
   xmlfile:write('\t\t<LayoutData index="0" marker_visible="true" background_color="000000" visible_grid_h="1" visible_grid_w="0" snap_grid_h="0.5" snap_grid_w="0.5" default_gauge="Filled &amp; Symbol" subfixture_view_mode="DMX Layer">', "\n")
   xmlfile:write('\t\t\t<CObjects>', "\n")
 end
@@ -288,7 +309,14 @@ return function()
 -----------------------------------------------------------------
 --------------------- START OF PLUGIN ---------------------------
 -----------------------------------------------------------------
-xmlfile = io.open("importexport/uts_colorpicker.xml", "w")
+local xmlFilename = 'colorpicker_layout.xml'
+local xmlError
+xmlfile, xmlError = io.open(importExportPath(xmlFilename), 'w')
+if not xmlfile then
+  gma.feedback('ColorPicker: cannot write layout file: '..tostring(xmlError))
+  gma.echo('ColorPicker: cannot write layout file: '..tostring(xmlError))
+  return
+end
 printXmlStart(layoutView, layoutName)
 local pName = {}
 
@@ -412,7 +440,7 @@ for g = 1, #grpNum do
       posY = (g + 0.5) * (1 + spacing)
 
       --add macro to layout pool
-      printNewButton(posX, posY, "Image Name", imageGrid[g][p], macCurrent, "Label")
+      printNewButton(posX, posY, grpName[g]..' '..pName[p], imageGrid[g][p], macCurrent, grpName[g]..' '..pName[p])
 
       --increment macro counter
       macCurrent = macCurrent + 1
@@ -462,7 +490,7 @@ for p = 1, #pNum do
     posY = (#grpNum + 1.5) * (1 + spacing)
 
     --add macro to layout pool
-    printNewButton(posX, posY, "Image Name", allImageGrid[p], macCurrent, "Label")
+    printNewButton(posX, posY, 'All '..pName[p], allImageGrid[p], macCurrent, 'All '..pName[p])
 
     --increment macro counter
   macCurrent = macCurrent + 1;
@@ -498,7 +526,7 @@ cmd('Macro '..mac_sys_start)
 printXmlEnd()
 xmlfile:close()
 
-cmd('Import uts_colorpicker.xml At Layout '..layoutView ..' /nc')
+importLayout(xmlFilename, layoutView)
 
 ::EOF::
 end
